@@ -183,8 +183,8 @@ def train_PG(exp_name='',
                                     trainable=True)  # logstd should just be a trainable variable, not a network output.
         sy_sampled_ac = tf.random_normal(shape=[None, ac_dim]) * tf.exp(sy_logstd) + sy_mean
         c_log_2pi = math.log(math.pi * 2.0)
-        sy_logprob_n = -1.0 * (0.5 * tf.square((sy_ac_na - sy_mean) / tf.exp(
-            sy_logstd)) + 0.5 * c_log_2pi + sy_logstd)  # Hint: Use the log probability under a multivariate gaussian.
+        sy_logprob_n = -0.5 * (tf.square((sy_ac_na - sy_mean) / tf.exp(
+            sy_logstd)) + c_log_2pi + sy_logstd)  # Hint: Use the log probability under a multivariate gaussian.
 
     # ========================================================================================#
     #                           ----------SECTION 4----------
@@ -320,7 +320,11 @@ def train_PG(exp_name='',
         # ====================================================================================#
 
         # YOUR_CODE_HERE
-        q_n = TODO
+        # q_n = TODO
+        if reward_to_go:
+            q_n =
+        else:
+            q_n = pass
 
         # ====================================================================================#
         #                           ----------SECTION 5----------
