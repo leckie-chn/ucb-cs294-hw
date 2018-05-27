@@ -8,6 +8,7 @@ import time
 import inspect
 import math
 from multiprocessing import Process
+from typing import List
 
 
 # ============================================================================================#
@@ -172,9 +173,9 @@ def train_PG(exp_name='',
     if discrete:
         # YOUR_CODE_HERE
         sy_logits_na = build_mlp(sy_ob_no, size=size, output_size=ac_dim, scope='policy', n_layers=n_layers)
-        sy_sampled_ac = tf.squeeze(tf.multinomial(sy_logits_na, 1))  # Hint: Use the tf.multinomial op
-        sy_ac_indices = tf.stack([tf.range(0, ac_dim), sy_ac_na], axis=1)
-        sy_logprob_n = tf.gather_nd(tf.nn.log_softmax(sy_logits_na), sy_ac_indices)
+        sy_sampled_ac = tf.reshape(tf.multinomial(sy_logits_na, 1), [-1])  # Hint: Use the tf.multinomial op
+        sy_logprob_n = tf.nn.softmax_cross_entropy_with_logits(logits=sy_logits_na,
+                                                               labels=tf.one_hot(sy_ac_na, depth=ac_dim))
 
     else:
         # YOUR_CODE_HERE
@@ -191,7 +192,8 @@ def train_PG(exp_name='',
     # Loss Function and Training Operation
     # ========================================================================================#
 
-    loss = -1.0 * tf.reduce_mean(sy_logprob_n * sy_adv_n) # Loss function that we'll differentiate to get the policy gradient.
+    loss = tf.reduce_mean(
+        sy_logprob_n * sy_adv_n)  # Loss function that we'll differentiate to get the policy gradient.
     update_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
     # ========================================================================================#
@@ -227,7 +229,6 @@ def train_PG(exp_name='',
     # ========================================================================================#
 
     total_timesteps = 0
-
     for itr in range(n_iter):
         print("********** Iteration %i ************" % itr)
 
@@ -321,11 +322,16 @@ def train_PG(exp_name='',
 
         # YOUR_CODE_HERE
         # q_n = TODO
-        if reward_to_go:
-            q_n =
-        else:
-            q_n = pass
+        def compute_q(path_rews: np.ndarray):
+            q_t = 0.0
+            ret_q = []
+            for r_t in path_rews[::-1]:
+                q_t += r_t + gamma * q_t
+                if reward_to_go:
+                    ret_q.append(q_t)
+            return ret_q[::-1] if reward_to_go else [q_t] * len(path_rews)
 
+        q_n = np.concatenate([compute_q(path['reward']) for path in paths])
         # ====================================================================================#
         #                           ----------SECTION 5----------
         # Computing Baselines
@@ -340,7 +346,12 @@ def train_PG(exp_name='',
             # (mean and std) of the current or previous batch of Q-values. (Goes with Hint
             # #bl2 below.)
 
-            b_n = TODO
+            q_n_mean = np.mean(q_n)
+            q_n_std = np.std(q_n)
+            b_n = sess.run(baseline_prediction, feed_dict={
+                sy_ob_no: ob_no,
+            })
+            b_n = b_n * q_n_std + q_n_mean
             adv_n = q_n - b_n
         else:
             adv_n = q_n.copy()
@@ -348,13 +359,14 @@ def train_PG(exp_name='',
         # ====================================================================================#
         #                           ----------SECTION 4----------
         # Advantage Normalization
-        # ====================================================================================#
-
+        # ====================================================================================
         if normalize_advantages:
             # On the next line, implement a trick which is known empirically to reduce variance
             # in policy gradient methods: normalize adv_n to have mean zero and std=1. 
             # YOUR_CODE_HERE
-            pass
+            adv_n_mean = np.mean(adv_n)
+            adv_n_std = np.std(adv_n)
+            adv_n = (adv_n - adv_n_mean) / adv_n_std
 
         # ====================================================================================#
         #                           ----------SECTION 5----------
@@ -372,7 +384,11 @@ def train_PG(exp_name='',
             # targets to have mean zero and std=1. (Goes with Hint #bl1 above.)
 
             # YOUR_CODE_HERE
-            pass
+            baseline_target = (q_n - q_n_mean) / q_n_std
+            _ = sess.run(baseline_update_op, feed_dict={
+                sy_ob_no: ob_no,
+                sy_adv_n: baseline_target,
+            })
 
         # ====================================================================================#
         #                           ----------SECTION 4----------
@@ -386,6 +402,11 @@ def train_PG(exp_name='',
         # and after an update, and then log them below. 
 
         # YOUR_CODE_HERE
+        _ = sess.run(update_op, feed_dict={
+            sy_ob_no: ob_no,
+            sy_ac_na: ac_na,
+            sy_adv_n: adv_n,
+        })
 
         # Log diagnostics
         returns = [path["reward"].sum() for path in paths]
