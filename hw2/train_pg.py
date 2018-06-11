@@ -1,15 +1,16 @@
-import numpy as np
-import tensorflow as tf
-import gym
-import logz
-import scipy.signal
-import os
-import time
 import inspect
 import math
+import os
+import time
 from multiprocessing import Process
 from typing import List
 
+import gym
+import numpy as np
+import scipy.signal
+import tensorflow as tf
+
+import logz
 
 # ============================================================================================#
 # Utilities
